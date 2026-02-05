@@ -1,0 +1,10 @@
+celery==5.4.0
+redis==5.2.1
+sqlalchemy==2.0.36
+psycopg2-binary==2.9.10
+pydantic==2.10.3
+pydantic-settings==2.6.1
+httpx==0.28.1
+pypdf==5.1.0
+openpyxl==3.1.5
+python-docx==1.1.2

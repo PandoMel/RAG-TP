@@ -1,0 +1,70 @@
+services:
+  postgres:
+    image: paradedb/paradedb:latest
+    environment:
+      POSTGRES_DB: rag
+      POSTGRES_USER: rag
+      POSTGRES_PASSWORD: rag
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./migrations/init:/docker-entrypoint-initdb.d
+
+  redis:
+    image: redis:7.4-alpine
+    ports:
+      - "6379:6379"
+
+  api:
+    build:
+      context: .
+      dockerfile: api/Dockerfile
+    depends_on:
+      - postgres
+      - redis
+      - reranker
+      - ocr
+      - mineru
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data/uploads:/data/uploads
+      - ./nas:/mnt/nas:ro
+
+  worker:
+    build:
+      context: .
+      dockerfile: worker/Dockerfile
+    depends_on:
+      - postgres
+      - redis
+      - ocr
+      - mineru
+    volumes:
+      - ./data/uploads:/data/uploads
+      - ./nas:/mnt/nas:ro
+
+  reranker:
+    build:
+      context: .
+      dockerfile: reranker/Dockerfile
+    ports:
+      - "8090:8090"
+
+  ocr:
+    build:
+      context: .
+      dockerfile: ocr/Dockerfile
+    ports:
+      - "8080:8080"
+
+  mineru:
+    build:
+      context: .
+      dockerfile: mineru/Dockerfile
+    ports:
+      - "8070:8070"
+
+volumes:
+  pgdata:

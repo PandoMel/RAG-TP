@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <title>RAG-TP UI</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 0; display: flex; }
+    #queue { width: 320px; border-right: 1px solid #ddd; padding: 12px; }
+    #main { flex: 1; padding: 12px; }
+    .tabs button { margin-right: 8px; }
+    .job { border: 1px solid #ddd; margin-bottom: 8px; padding: 6px; border-radius: 4px; }
+  </style>
+</head>
+<body>
+  <aside id="queue">
+    <h3>Очередь задач</h3>
+    <div id="jobs"></div>
+  </aside>
+  <main id="main">
+    <div class="tabs">
+      <button>Поиск по файлу</button>
+      <button>Поиск по NAS</button>
+      <button>Распознать документ (скоро)</button>
+    </div>
+    <p>UI каркас. Источники для ответов должны содержать кнопки «Открыть/Скачать».</p>
+  </main>
+  <script>
+    async function refreshQueue() {
+      const response = await fetch('/v1/jobs');
+      const jobs = await response.json();
+      const el = document.getElementById('jobs');
+      el.innerHTML = '';
+      jobs.slice(0, 99).forEach(job => {
+        const row = document.createElement('div');
+        row.className = 'job';
+        row.innerText = `#${job.queue_position ?? '-'} ${job.file_name ?? 'job'} (${job.file_size_mb ?? 0} MB) -> ${job.status}/${job.current_step}`;
+        el.appendChild(row);
+      });
+    }
+    setInterval(refreshQueue, 3000);
+    refreshQueue();
+  </script>
+</body>
+</html>
