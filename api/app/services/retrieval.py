@@ -1,19 +1,31 @@
 from collections import defaultdict
 from sqlalchemy import text
 
+from .embeddings import get_embedder
+
 
 class RetrievalService:
     def __init__(self, db):
         self.db = db
 
     def _embed_query(self, query: str) -> str:
-        # Простой детерминированный embedding stub, заменяется на BGE-M3 в worker-сервисе.
-        vec = [0.0] * 8
-        for idx, ch in enumerate(query[:64]):
-            vec[idx % 8] += (ord(ch) % 31) / 100.0
-        return "[" + ",".join(f"{x:.4f}" for x in vec) + "]"
+        embedder = get_embedder()
+        batch = embedder.embed_texts([query])
+        vec = batch.embeddings[0]
+        return "[" + ",".join(f"{x:.6f}" for x in vec) + "]"
 
-    def hybrid_search(self, query: str, mode: str, source_ids: list[int], temp_document_id: int | None, bm25_top_k: int, vector_top_k: int, rrf_k: int, final_top_n: int):
+    def hybrid_search(
+        self,
+        query: str,
+        mode: str,
+        source_ids: list[int],
+        temp_document_id: int | None,
+        subpath: str | None,
+        bm25_top_k: int,
+        vector_top_k: int,
+        rrf_k: int,
+        final_top_n: int,
+    ):
         filters = ["d.deleted_at IS NULL"]
         params = {"query": query, "bm25_top_k": bm25_top_k, "vector_top_k": vector_top_k, "rrf_k": rrf_k}
 
@@ -23,10 +35,14 @@ class RetrievalService:
         elif mode == "nas" and source_ids:
             filters.append("d.source_id = ANY(:source_ids)")
             params["source_ids"] = source_ids
+        if subpath:
+            cleaned = subpath.strip().lstrip("/")
+            filters.append("d.relative_path ILIKE :subpath")
+            params["subpath"] = f\"{cleaned}%\"
 
         where_clause = " AND ".join(filters)
         bm25_sql = text(f"""
-            SELECT c.id, c.document_id, c.content,
+            SELECT c.id, c.document_id, c.content, c.meta->>'page_or_sheet' AS page_or_sheet,
                    ROW_NUMBER() OVER (ORDER BY paradedb.score(c.id) DESC) AS rank
             FROM chunks c
             JOIN documents d ON d.id = c.document_id
@@ -35,7 +51,7 @@ class RetrievalService:
             LIMIT :bm25_top_k
         """)
         vector_sql = text(f"""
-            SELECT c.id, c.document_id, c.content,
+            SELECT c.id, c.document_id, c.content, c.meta->>'page_or_sheet' AS page_or_sheet,
                    ROW_NUMBER() OVER (ORDER BY c.embedding <=> CAST(:embedding AS vector)) AS rank
             FROM chunks c
             JOIN documents d ON d.id = c.document_id

@@ -10,11 +10,21 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./migrations/init:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U rag -d rag"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   redis:
     image: redis:7.4-alpine
     ports:
       - "6379:6379"
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli ping | grep PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   api:
     build:
@@ -30,7 +40,13 @@ services:
       - "8000:8000"
     volumes:
       - ./data/uploads:/data/uploads
-      - ./nas:/mnt/nas:ro
+      - /srv/RAG/models:/models
+      - /srv/RAG/nas:/mnt/nas:ro
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/v1/config/public').read()\""]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   worker:
     build:
@@ -43,7 +59,13 @@ services:
       - mineru
     volumes:
       - ./data/uploads:/data/uploads
-      - ./nas:/mnt/nas:ro
+      - /srv/RAG/models:/models
+      - /srv/RAG/nas:/mnt/nas:ro
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"from redis import Redis; Redis.from_url('redis://redis:6379/0').ping()\""]
+      interval: 30s
+      timeout: 5s
+      retries: 3
 
   reranker:
     build:
@@ -51,6 +73,13 @@ services:
       dockerfile: reranker/Dockerfile
     ports:
       - "8090:8090"
+    volumes:
+      - /srv/RAG/models:/models
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import socket; s=socket.socket(); s.connect(('localhost', 8090)); s.close()\""]
+      interval: 20s
+      timeout: 5s
+      retries: 5
 
   ocr:
     build:
@@ -58,6 +87,11 @@ services:
       dockerfile: ocr/Dockerfile
     ports:
       - "8080:8080"
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import socket; s=socket.socket(); s.connect(('localhost', 8080)); s.close()\""]
+      interval: 20s
+      timeout: 5s
+      retries: 5
 
   mineru:
     build:
@@ -65,6 +99,11 @@ services:
       dockerfile: mineru/Dockerfile
     ports:
       - "8070:8070"
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import socket; s=socket.socket(); s.connect(('localhost', 8070)); s.close()\""]
+      interval: 20s
+      timeout: 5s
+      retries: 5
 
 volumes:
   pgdata:

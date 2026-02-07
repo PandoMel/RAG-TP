@@ -12,6 +12,18 @@ class Settings(BaseSettings):
     temp_upload_ttl_hours: int = 24
     allowed_extensions: str = "pdf,docx,xlsx,txt"
 
+    # Models
+    models_dir: str = "/models"
+    embedding_model_path: str = "/models/bge-m3/sentence_transformers_fp16.onnx"
+    reranker_model_path: str = "/models/bge-reranker-v2-gemma/model.onnx"
+    llm_models_dir: str = "/models/llm"
+    embedding_onnx_providers: list[str] = ["CPUExecutionProvider"]
+    reranker_onnx_providers: list[str] = ["CPUExecutionProvider"]
+    embedding_device: str = "cpu"
+    reranker_device: str = "cpu"
+    llm_device: str = "gpu"
+    embedding_max_tokens: int = 512
+
     # Pipeline config
     parser_pipeline_order: str = "builtin,mineru,paddleocr"
     quality_threshold_builtin: float = 0.65
@@ -22,7 +34,7 @@ class Settings(BaseSettings):
     # Chunking and embeddings
     chunk_size_chars: int = 800
     chunk_overlap_chars: int = 120
-    embedding_dim: int = 8
+    embedding_dim: int = 1024
     embedding_batch_size: int = 16
     embedding_max_chars: int = 2000
 
@@ -31,6 +43,11 @@ class Settings(BaseSettings):
     ocr_timeout_seconds: int = 180
     job_timeout_seconds: int = 900
     max_pdf_pages_for_ocr: int = 100
+
+    # NAS scan limits
+    scan_max_files: int = 2000
+    scan_max_mb: int = 2048
+    scan_timeout_seconds: int = 900
 
     # GPU lock
     gpu_lock_key: str = "gpu_lock"
