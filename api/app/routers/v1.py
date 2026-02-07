@@ -25,7 +25,10 @@ def public_config():
         "temp_upload_ttl_hours": settings.temp_upload_ttl_hours,
         "bm25_top_k": settings.bm25_top_k,
         "vector_top_k": settings.vector_top_k,
+        "rrf_k": settings.rrf_k,
         "final_top_n": settings.final_top_n,
+        "rerank_top_n": settings.rerank_top_n,
+        "context_top_m": settings.context_top_m,
     }
 
 
@@ -88,20 +91,59 @@ def list_sources(db: Session = Depends(get_db)):
 
 @router.get("/documents/{document_id}/view")
 def view_document(document_id: int, db: Session = Depends(get_db)):
-    doc = db.execute(text("SELECT storage_path, relative_path FROM documents WHERE id=:id"), {"id": document_id}).mappings().first()
+    doc = db.execute(
+        text("SELECT id, scope, storage_path, relative_path, source_id FROM documents WHERE id=:id"),
+        {"id": document_id},
+    ).mappings().first()
     if not doc:
         raise HTTPException(status_code=404, detail="Документ не найден")
-    safe_path = ensure_safe_path(Path(settings.upload_dir), doc["relative_path"])
-    return FileResponse(safe_path, media_type="application/pdf")
+    try:
+        safe_path = _resolve_document_path(doc, db)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Недопустимый путь")
+    filename = safe_path.name
+    if safe_path.suffix.lower() == ".pdf":
+        headers = {"Content-Disposition": f'inline; filename=\"{filename}\"'}
+        return FileResponse(safe_path, media_type="application/pdf", headers=headers)
+    return FileResponse(safe_path, filename=filename)
 
 
 @router.get("/documents/{document_id}/download")
 def download_document(document_id: int, db: Session = Depends(get_db)):
-    doc = db.execute(text("SELECT storage_path, relative_path FROM documents WHERE id=:id"), {"id": document_id}).mappings().first()
+    doc = db.execute(
+        text("SELECT id, scope, storage_path, relative_path, source_id FROM documents WHERE id=:id"),
+        {"id": document_id},
+    ).mappings().first()
     if not doc:
         raise HTTPException(status_code=404, detail="Документ не найден")
-    safe_path = ensure_safe_path(Path(settings.upload_dir), doc["relative_path"])
-    return FileResponse(safe_path, filename=Path(doc["relative_path"]).name)
+    try:
+        safe_path = _resolve_document_path(doc, db)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Недопустимый путь")
+    filename = safe_path.name
+    headers = {"Content-Disposition": f'attachment; filename=\"{filename}\"'}
+    return FileResponse(safe_path, filename=filename, headers=headers)
+
+
+def _resolve_document_path(doc: dict, db: Session) -> Path:
+    if doc["scope"] == "temp":
+        return Path(doc["storage_path"])
+    if doc["scope"] == "nas":
+        source = db.execute(
+            text("SELECT base_path FROM sources WHERE id=:id"),
+            {"id": doc["source_id"]},
+        ).mappings().first()
+        if not source:
+            raise ValueError("Источник не найден")
+        base_path = Path(source["base_path"])
+        if not base_path.is_absolute():
+            base_path = Path(settings.nas_mount_path) / base_path
+        base_path = base_path.resolve()
+        nas_root = Path(settings.nas_mount_path).resolve()
+        if not str(base_path).startswith(str(nas_root)):
+            raise ValueError("Base path выходит за пределы NAS")
+        return ensure_safe_path(base_path, doc["relative_path"])
+    raise ValueError("Неизвестный scope")
 
 
 @router.get("/admin", response_class=HTMLResponse)

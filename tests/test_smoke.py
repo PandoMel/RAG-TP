@@ -35,7 +35,17 @@ def test_retrieval_returns_citations():
         timeout=10,
     )
     assert response.status_code == 200
-    assert "citations" in response.json()
+    payload = response.json()
+    assert "citations" in payload
+    assert "answer" in payload
+
+
+def test_public_config_exposes_limits():
+    response = requests.get(f"{API_URL}/v1/config/public", timeout=10)
+    assert response.status_code == 200
+    payload = response.json()
+    for key in ("bm25_top_k", "vector_top_k", "rrf_k", "final_top_n", "rerank_top_n", "context_top_m"):
+        assert key in payload
 
 
 def test_path_traversal_protection():

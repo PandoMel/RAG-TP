@@ -2,6 +2,8 @@ CREATE TABLE IF NOT EXISTS sources (
   id BIGSERIAL PRIMARY KEY,
   name TEXT NOT NULL,
   base_path TEXT NOT NULL,
+  include_globs TEXT[] NOT NULL DEFAULT ARRAY[]::text[],
+  exclude_globs TEXT[] NOT NULL DEFAULT ARRAY[]::text[],
   enabled BOOLEAN NOT NULL DEFAULT TRUE,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -25,7 +27,7 @@ CREATE TABLE IF NOT EXISTS chunks (
   document_id BIGINT NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
   chunk_index INT NOT NULL,
   content TEXT NOT NULL,
-  embedding VECTOR(8),
+  embedding VECTOR(1024),
   meta JSONB NOT NULL DEFAULT '{}'::jsonb,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
